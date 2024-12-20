@@ -1,22 +1,35 @@
 'use client';
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
 import { Task } from '@prisma/client';
 import { TaskModal } from '@/components/TaskModal';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import axiosInstance from '@/utils/axios';
+import { EventWithConflict } from '@/components/calendar/calendar.type';
+import { generateEvents, COLORS } from '@/components/calendar/CalendarConfig';
+import EventTooltip from '@/components/calendar/EventTooltip';
+import dayGridPlugin from '@fullcalendar/daygrid';
+
+interface CalendarState {
+    isModalOpen: boolean;
+    selectedEvent: EventWithConflict | null;
+    tasks: Task[];
+    isLoading: boolean;
+}
 
 export default function CalendarPage() {
     const { toast } = useToast();
-    const [state, setState] = useState({
+    const [state, setState] = useState<CalendarState>({
         isModalOpen: false,
-        selectedTask: null as Task | null,
-        tasks: [] as Task[],
+        selectedEvent: null,
+        tasks: [],
         isLoading: true,
     });
 
@@ -46,12 +59,15 @@ export default function CalendarPage() {
         fetchTasks();
     }, []);
 
-    const handleEventClick = (info: { event: { id: string } }) => {
-        const task = state.tasks.find((t) => t.id.toString() === info.event.id);
-        if (task) {
+    const handleEventClick = (info: {
+        event: { id: string; extendedProps: any };
+    }) => {
+        const eventId = info.event.id;
+        const selectedEvent = events.find((e) => e.id === eventId);
+        if (selectedEvent) {
             setState((prev) => ({
                 ...prev,
-                selectedTask: task,
+                selectedEvent,
                 isModalOpen: true,
             }));
         }
@@ -61,51 +77,11 @@ export default function CalendarPage() {
         setState((prev) => ({
             ...prev,
             isModalOpen: false,
-            selectedTask: null,
+            selectedEvent: null,
         }));
     };
 
-    const handleSaveTask = async (
-        task: Omit<Task, 'id'> & Partial<Pick<Task, 'id'>>,
-    ) => {
-        try {
-            if (state.selectedTask) {
-                await axiosInstance.put(
-                    `/tasks/${state.selectedTask.id}`,
-                    task,
-                );
-                toast({ description: 'Task updated successfully' });
-            } else {
-                await axiosInstance.post('/tasks', task);
-                toast({ description: 'Task created successfully' });
-            }
-            fetchTasks();
-            handleCloseModal();
-        } catch (error: any) {
-            toast({
-                description:
-                    error?.response?.data?.message || 'Failed to save task',
-                variant: 'destructive',
-            });
-        }
-    };
-
-    const events = state.tasks.map((task) => ({
-        id: task.id.toString(),
-        title: task.title,
-        start: task.startTime,
-        end: new Date(
-            new Date(task.startTime).getTime() + task.duration * 60000,
-        ).toISOString(),
-        backgroundColor:
-            task.priority === 'HIGH'
-                ? '#f87171'
-                : task.priority === 'MEDIUM'
-                  ? '#fb923c'
-                  : '#4ade80',
-        display: 'block',
-        extendedProps: { description: task.description },
-    }));
+    const events = useMemo(() => generateEvents(state.tasks), [state.tasks]);
 
     if (state.isLoading) {
         return (
@@ -122,50 +98,107 @@ export default function CalendarPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>
-                        <h1 className="text-2xl font-semibold tracking-tight">
-                            Calendar
-                        </h1>
+                        <div className="flex items-center justify-between">
+                            <h1 className="text-2xl font-semibold tracking-tight">
+                                Calendar
+                            </h1>
+                            <div className="flex gap-4 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <div
+                                        className="w-3 h-3 rounded-full"
+                                        style={{
+                                            backgroundColor: COLORS.conflict.bg,
+                                        }}
+                                    ></div>
+                                    <span className="font-medium">
+                                        Conflicts
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div
+                                        className="w-3 h-3 rounded-full"
+                                        style={{
+                                            backgroundColor:
+                                                COLORS.priority.HIGH.bg,
+                                        }}
+                                    ></div>
+                                    <span>High Priority</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div
+                                        className="w-3 h-3 rounded-full"
+                                        style={{
+                                            backgroundColor:
+                                                COLORS.priority.MEDIUM.bg,
+                                        }}
+                                    ></div>
+                                    <span>Medium Priority</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div
+                                        className="w-3 h-3 rounded-full"
+                                        style={{
+                                            backgroundColor:
+                                                COLORS.priority.LOW.bg,
+                                        }}
+                                    ></div>
+                                    <span>Low Priority</span>
+                                </div>
+                            </div>
+                        </div>
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <FullCalendar
-                        plugins={[
-                            dayGridPlugin,
-                            timeGridPlugin,
-                            interactionPlugin,
-                        ]}
-                        headerToolbar={{
-                            left: 'prev,next today',
-                            center: 'title',
-                            right: 'dayGridMonth,timeGridWeek,timeGridDay',
-                        }}
-                        initialView="timeGridWeek"
-                        events={events}
-                        eventClick={handleEventClick}
-                        allDaySlot={false}
-                        contentHeight="auto"
-                        slotDuration="00:15:00"
-                        slotLabelFormat={{
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: false,
-                        }}
-                        eventTimeFormat={{
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: false,
-                        }}
-                        eventClassNames="h-5"
-                    />
+                    <TooltipProvider>
+                        <FullCalendar
+                            plugins={[dayGridPlugin]}
+                            initialView="dayGridMonth"
+                            headerToolbar={{
+                                start: 'prev',
+                                center: 'title',
+                                end: 'next',
+                            }}
+                            fixedWeekCount={false}
+                            showNonCurrentDates={false}
+                            dayMaxEvents={4}
+                            eventClassNames="cursor-pointer"
+                            events={events}
+                            eventClick={handleEventClick}
+                            eventContent={(info) => {
+                                const event = events.find(
+                                    (e) => e.id === info.event.id,
+                                );
+                                if (!event) return null;
+
+                                return (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <div className="w-full h-full p-1">
+                                                <div className="text-xs font-medium truncate">
+                                                    {info.event.title}
+                                                </div>
+                                            </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent
+                                            side="right"
+                                            align="start"
+                                            className="z-[100]"
+                                        >
+                                            <EventTooltip event={event} />
+                                        </TooltipContent>
+                                    </Tooltip>
+                                );
+                            }}
+                        />
+                    </TooltipProvider>
                 </CardContent>
             </Card>
 
-            {/* Task Modal for viewing/editing events */}
             <TaskModal
                 isOpen={state.isModalOpen}
                 onClose={handleCloseModal}
-                task={state.selectedTask}
-                onSave={handleSaveTask}
+                task={state.selectedEvent?.task}
+                viewOnly={true}
             />
         </>
     );

@@ -13,7 +13,7 @@ Run the following commands:
 $ docker compose up -d
 
 # Access the MySQL container and grant permissions
-$ docker exec -it docker-compose.yml mysql -u root -p
+$ docker exec -it calendar_smart_db_8 mysql -u root -p
 mysql> GRANT ALL PRIVILEGES ON *.* TO 'user'@'%' WITH GRANT OPTION;
 ```
 

@@ -25,10 +25,17 @@ interface TaskModalProps {
     isOpen: boolean;
     onClose: () => void;
     task?: Task | null;
-    onSave: (task: Omit<Task, 'id'> & Partial<Pick<Task, 'id'>>) => void;
+    onSave?: (task: Omit<Task, 'id'> & Partial<Pick<Task, 'id'>>) => void; // Make this optional
+    viewOnly?: boolean; // New prop for view-only mode
 }
 
-export function TaskModal({ isOpen, onClose, task, onSave }: TaskModalProps) {
+export function TaskModal({
+    isOpen,
+    onClose,
+    task,
+    onSave,
+    viewOnly = false, // Default to false for edit mode
+}: TaskModalProps) {
     const [formData, setFormData] = useState<Omit<Task, 'id'>>({
         title: '',
         description: '',
@@ -70,17 +77,20 @@ export function TaskModal({ isOpen, onClose, task, onSave }: TaskModalProps) {
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
     ) => {
+        if (viewOnly) return; // Prevent changes in view-only mode
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
     const handleDateTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (viewOnly) return; // Prevent changes in view-only mode
         const { name, value } = e.target;
         const date = new Date(value);
         setFormData((prev) => ({ ...prev, [name]: date }));
     };
 
     const handlePriorityChange = (value: string) => {
+        if (viewOnly) return;
         setFormData((prev) => ({
             ...prev,
             priority: value as Task['priority'],
@@ -89,11 +99,13 @@ export function TaskModal({ isOpen, onClose, task, onSave }: TaskModalProps) {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({
-            ...formData,
-            duration: Number(formData.duration),
-            repeat: Number(formData.repeat),
-        });
+        if (!viewOnly && onSave) {
+            onSave({
+                ...formData,
+                duration: Number(formData.duration),
+                repeat: Number(formData.repeat),
+            });
+        }
     };
 
     return (
@@ -101,7 +113,11 @@ export function TaskModal({ isOpen, onClose, task, onSave }: TaskModalProps) {
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>
-                        {task ? 'Edit Task' : 'Create Task'}
+                        {task
+                            ? viewOnly
+                                ? 'View Task'
+                                : 'Edit Task'
+                            : 'Create Task'}
                     </DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit}>
@@ -113,6 +129,7 @@ export function TaskModal({ isOpen, onClose, task, onSave }: TaskModalProps) {
                                 name="title"
                                 value={formData.title}
                                 onChange={handleInputChange}
+                                disabled={viewOnly}
                                 required
                             />
                         </div>
@@ -123,6 +140,7 @@ export function TaskModal({ isOpen, onClose, task, onSave }: TaskModalProps) {
                                 name="description"
                                 value={formData.description}
                                 onChange={handleInputChange}
+                                disabled={viewOnly}
                             />
                         </div>
                         <div>
@@ -136,6 +154,7 @@ export function TaskModal({ isOpen, onClose, task, onSave }: TaskModalProps) {
                                     "yyyy-MM-dd'T'HH:mm",
                                 )}
                                 onChange={handleDateTimeChange}
+                                disabled={viewOnly}
                                 required
                             />
                         </div>
@@ -149,6 +168,7 @@ export function TaskModal({ isOpen, onClose, task, onSave }: TaskModalProps) {
                                 name="duration"
                                 value={formData.duration}
                                 onChange={handleInputChange}
+                                disabled={viewOnly}
                                 required
                             />
                         </div>
@@ -160,6 +180,7 @@ export function TaskModal({ isOpen, onClose, task, onSave }: TaskModalProps) {
                                 name="repeat"
                                 value={formData.repeat}
                                 onChange={handleInputChange}
+                                disabled={viewOnly}
                                 required
                             />
                         </div>
@@ -168,6 +189,7 @@ export function TaskModal({ isOpen, onClose, task, onSave }: TaskModalProps) {
                             <Select
                                 value={formData.priority}
                                 onValueChange={handlePriorityChange}
+                                disabled={viewOnly}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select priority" />
@@ -182,16 +204,18 @@ export function TaskModal({ isOpen, onClose, task, onSave }: TaskModalProps) {
                             </Select>
                         </div>
                     </div>
-                    <div className="mt-6 flex justify-end space-x-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={onClose}
-                        >
-                            Cancel
-                        </Button>
-                        <Button type="submit">Save</Button>
-                    </div>
+                    {!viewOnly && (
+                        <div className="mt-6 flex justify-end space-x-4">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={onClose}
+                            >
+                                Cancel
+                            </Button>
+                            <Button type="submit">Save</Button>
+                        </div>
+                    )}
                 </form>
             </DialogContent>
         </Dialog>

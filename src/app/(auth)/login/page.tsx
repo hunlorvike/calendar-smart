@@ -38,7 +38,7 @@ export default function LoginPage() {
 
             localStorage.setItem('token', response.data.data.token);
 
-            router.push('/');
+            window.location.href = '/';
         } catch (error: any) {
             const errorMessage =
                 error?.response?.data?.message || 'Something went wrong';
